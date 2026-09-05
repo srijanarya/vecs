@@ -1,4 +1,3 @@
-import builtins
 import sys
 import types
 
@@ -59,7 +58,9 @@ def test_upsert_progress_sized_reports_total(client: vecs.Client, fake_tqdm) -> 
     assert len(coll) == 1200
 
 
-def test_upsert_progress_generator_is_indeterminate(client: vecs.Client, fake_tqdm) -> None:
+def test_upsert_progress_generator_is_indeterminate(
+    client: vecs.Client, fake_tqdm
+) -> None:
     coll = client.get_or_create_collection(name="prog_gen", dimension=4)
     coll.upsert((r for r in _records(7)), show_progress=True)
     (bar,) = fake_tqdm.instances
