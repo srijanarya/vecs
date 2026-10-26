@@ -75,3 +75,14 @@ def test_upsert_progress_without_tqdm_raises(client: vecs.Client, monkeypatch) -
     coll = client.get_or_create_collection(name="prog_missing", dimension=4)
     with pytest.raises(ImportError, match="vecs\\[progress\\]"):
         coll.upsert(_records(3), show_progress=True)
+
+
+def test_upsert_progress_closes_on_error(client: vecs.Client, fake_tqdm) -> None:
+    coll = client.get_or_create_collection(name="prog_error", dimension=4)
+    # the second chunk carries a 5-dimension vector, so its insert fails
+    records = _records(500) + [("bad", np.random.random(5), {})]
+    with pytest.raises(Exception):
+        coll.upsert(records, show_progress=True)
+    (bar,) = fake_tqdm.instances
+    assert bar.updates == [500]
+    assert bar.closed

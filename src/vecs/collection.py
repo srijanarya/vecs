@@ -368,30 +368,33 @@ class Collection:
             total = len(records) if isinstance(records, Sized) else None
             progress = tqdm(total=total, desc="upsert", unit="records")
 
-        if skip_adapter:
-            pipeline = flu(records).chunk(chunk_size)
-        else:
-            # Construct a lazy pipeline of steps to transform and chunk user input
-            pipeline = flu(self.adapter(records, AdapterContext("upsert"))).chunk(
-                chunk_size
-            )
+        try:
+            if skip_adapter:
+                pipeline = flu(records).chunk(chunk_size)
+            else:
+                # Construct a lazy pipeline of steps to transform and chunk user input
+                pipeline = flu(self.adapter(records, AdapterContext("upsert"))).chunk(
+                    chunk_size
+                )
 
-        with self.client.Session() as sess:
-            with sess.begin():
-                for chunk in pipeline:
-                    stmt = postgresql.insert(self.table).values(chunk)
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=[self.table.c.id],
-                        set_=dict(
-                            vec=stmt.excluded.vec, metadata=stmt.excluded.metadata
-                        ),
-                    )
-                    sess.execute(stmt)
-                    if progress is not None:
-                        progress.update(len(chunk))
-
-        if progress is not None:
-            progress.close()
+            with self.client.Session() as sess:
+                with sess.begin():
+                    for chunk in pipeline:
+                        stmt = postgresql.insert(self.table).values(chunk)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=[self.table.c.id],
+                            set_=dict(
+                                vec=stmt.excluded.vec, metadata=stmt.excluded.metadata
+                            ),
+                        )
+                        sess.execute(stmt)
+                        if progress is not None:
+                            progress.update(len(chunk))
+        finally:
+            # Close the bar on errors too, so a failed upsert does not leave a
+            # half-rendered notebook widget behind.
+            if progress is not None:
+                progress.close()
         return None
 
     def fetch(self, ids: Iterable[str]) -> List[Record]:
